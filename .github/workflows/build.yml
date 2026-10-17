@@ -25,11 +25,37 @@ jobs:
       - name: Add Android platform
         run: npx cap add android
 
-      - name: Vibration permission + portrait lock
+      - name: Generate app icons and splash
+        continue-on-error: true
+        run: |
+          npm install --no-save @capacitor/assets@3
+          npx capacitor-assets generate --android
+
+      - name: Fullscreen, vibration, portrait
         run: |
           M=android/app/src/main/AndroidManifest.xml
           sed -i 's#<application#<uses-permission android:name="android.permission.VIBRATE" />\n    <application#' $M
           sed -i 's#<activity#<activity android:screenOrientation="portrait"#' $M
+          S=android/app/src/main/res/values/styles.xml
+          sed -i 's#<item name="windowActionBar">false</item>#<item name="windowActionBar">false</item><item name="android:windowFullscreen">true</item><item name="android:windowLayoutInDisplayCutoutMode">shortEdges</item>#' $S
+          cat > android/app/src/main/java/com/tpyno/runningworm/MainActivity.java <<'JAVA'
+          package com.tpyno.runningworm;
+          import android.os.Bundle;
+          import androidx.core.view.WindowCompat;
+          import androidx.core.view.WindowInsetsCompat;
+          import androidx.core.view.WindowInsetsControllerCompat;
+          import com.getcapacitor.BridgeActivity;
+          public class MainActivity extends BridgeActivity {
+            @Override public void onCreate(Bundle b) { super.onCreate(b); hide(); }
+            @Override public void onWindowFocusChanged(boolean f) { super.onWindowFocusChanged(f); if (f) hide(); }
+            private void hide() {
+              WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+              WindowInsetsControllerCompat c = WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView());
+              c.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+              c.hide(WindowInsetsCompat.Type.systemBars());
+            }
+          }
+          JAVA
 
       - name: Sync web assets
         run: npx cap sync android
